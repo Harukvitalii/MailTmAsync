@@ -2,6 +2,8 @@ import json
 import time
 import aiohttp
 
+from datetime import datetime, timedelta
+
 
 class Listen:
     listen = False
@@ -28,19 +30,23 @@ class Listen:
         return await self.get_json_get(session, url, proxy=None)
 
 
-    async def start_listening(self, ):
+    async def start_listening(self, maxWait = 1):
+        
         self.listen = True
         async with aiohttp.ClientSession(headers={ 'Authorization': 'Bearer ' + self.token }) as session:
             for message in await self.message_list(session):
                 self.message_ids.append(message['id'])
             id_last = self.message_ids[-1] if self.message_ids else 0
             while self.listen:
-                for message in await self.message_list(session):
-                    # print('msg', message['id'])
-                    if message['id'] != 0 and message['id'] != id_last: 
-                        new_message = await self.message(session, message['id'])
-                        self.listen = False   
-                time.sleep(self.interval)
+                new_message = None
+                time1 = datetime.now()
+                while datetime.now() <= time1 + timedelta(minutes=maxWait):
+                    for message in await self.message_list(session):
+                        # print('msg', message['id'])
+                        if message['id'] != 0 and message['id'] != id_last: 
+                            new_message = await self.message(session, message['id'])
+                            self.listen = False   
+                    time.sleep(self.interval)
         return new_message
     
     

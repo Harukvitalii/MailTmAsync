@@ -1,20 +1,20 @@
 import json
 import time
 import aiohttp
-
+import asyncio
 from datetime import datetime, timedelta
 
 
 class Listen:
     listen = False
     message_ids = []
-    interval = 3
+    interval = 7
 
-    async def message_list(self, session):
+    async def message_list(self, session, proxy):
         url = "https://api.mail.tm/messages"
         # headers = { 'Authorization': 'Bearer ' + self.token }
         # response = self.session.get(url, headers=headers)
-        data = await self.get_json_get(session, url, proxy=None)
+        data = await self.get_json_get(session, url, proxy)
         # response.raise_for_status()
         # print('data: ', data)
         # data = response.json()
@@ -23,30 +23,32 @@ class Listen:
                         if data['hydra:member'][i]['id'] not in self.message_ids
                 ]
 
-    async def message(self, session, idx):
+    async def message(self, session, idx, proxy):
         url = "https://api.mail.tm/messages/" + idx
         # headers = { 'Authorization': 'Bearer ' + self.token }
         # response = self.session.get(url, headers=headers)
-        return await self.get_json_get(session, url, proxy=None)
+        return await self.get_json_get(session, url, proxy)
 
 
-    async def start_listening(self, maxWait = 1):
+    async def start_listening(self, waitMin = 1, waitSec = 0, proxy=None, see=False):
         
         self.listen = True
-        async with aiohttp.ClientSession(headers={ 'Authorization': 'Bearer ' + self.token }) as session:
-            for message in await self.message_list(session):
+        async with aiohttp.ClientSession(headers={ 'Authorization': 'Bearer ' + self.token}) as session:
+            for message in await self.message_list(session, proxy):
                 self.message_ids.append(message['id'])
             id_last = self.message_ids[-1] if self.message_ids else 0
             while self.listen:
                 new_message = None
                 time1 = datetime.now()
-                while datetime.now() <= time1 + timedelta(minutes=maxWait):
-                    for message in await self.message_list(session):
+                while datetime.now() <= time1 + timedelta(minutes=waitMin, seconds=waitSec):
+                    for message in await self.message_list(session,proxy):
                         # print('msg', message['id'])
                         if message['id'] != 0 and message['id'] != id_last: 
-                            new_message = await self.message(session, message['id'])
+                            new_message = await self.message(session, message['id'],proxy)
                             self.listen = False   
-                    time.sleep(self.interval)
+                    if see: print("sleeping ", self.interval, 'seconds')
+                    await asyncio.sleep(self.interval)
+                break
         return new_message
     
     
@@ -58,7 +60,6 @@ class Listen:
                 try: 
                     response.raise_for_status()
                 except aiohttp.client_exceptions.ClientResponseError:
-                    print(response)
                     return 'ClientResponseError'
                 return await response.json(content_type=None)
         else: 
@@ -66,7 +67,6 @@ class Listen:
                 try: 
                     response.raise_for_status()
                 except aiohttp.client_exceptions.ClientResponseError:
-                    print(response)
                     return 'ClientResponseError'
                 return await response.json(content_type=None)
 
@@ -81,5 +81,3 @@ class Listen:
                 response.raise_for_status()
                 return await response.json(content_type=None)
         
-
-
